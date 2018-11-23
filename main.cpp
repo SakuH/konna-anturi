@@ -1,12 +1,12 @@
 ﻿/*
 Konna-anturi
 5.11.2018
-Päivitetty 19.11.2018
+Päivitetty 23.11.2018
 Saku Huuha & Niko Hämäläinen
 */
 #include "mbed.h"
 #include "L3G4200D.h"
-
+#include <math.h>
 #define TS 0.025
 
 Timer timer;
@@ -30,6 +30,15 @@ double x,y,z;
 double xr,yr,zr;
 double kulma_x,kulma_y,kulma_z;
 int laskuri = 0; 
+
+AnalogIn lampo(A3);
+float Ur = 0;
+float r0 = 12;
+float U0 = 3.3;
+float ntcR = 0;
+float lampoLukema = 0;
+float lampotila = 0;
+float apumuuttuja = 0;
 
 void kulmatikkeri_isr(void)
 {
@@ -175,6 +184,70 @@ kulma[1] = 0;
                
 }
 
+void lampotilalaskut()
+{
+lampoLukema = lampo.read_u16();
+Ur = (lampoLukema/65535)*U0;
+
+ntcR = r0*(U0/Ur-1);
+
+
+if(ntcR >= 130.156865)
+{
+lampotila = (2*(pow(10,-8)))*(pow(ntcR,4))+(2*(pow(10,-5)))*(pow(ntcR , 3))+(0.0052*(pow(ntcR,2)))- 0.7976*ntcR+ 16.014;
+}
+
+if(ntcR >= 49.29905 && ntcR < 130.156865)
+{
+   //lampotila = -21.62*(log(ntcR)) + 71.969;
+
+   apumuuttuja=(ntcR-49.29905 )/(130.156865-49.29905 );
+   lampotila = (1-apumuuttuja)*(-21.62*(log(ntcR)) + 71.969) +(apumuuttuja) *(2*(pow(10,-8))*(pow(ntcR,4))+(2*(pow(10,-5)))*(pow(ntcR , 3))+(0.0052*(pow(ntcR,2)))- 0.7976*ntcR+ 16.014);
+    
+}
+
+if(ntcR >=20.3535 && ntcR < 49.29905 )
+{
+  //lampotila = -25.93*(log(ntcR)) + 86.273;
+
+apumuuttuja = (ntcR-20.3535)/(49.29905 -20.3535);
+
+lampotila = (1-apumuuttuja)*(-25.93*(log(ntcR)) + 86.273) + (apumuuttuja)*(lampotila = -21.62*(log(ntcR)) + 71.969);
+
+}
+
+if (ntcR >=9.212 && ntcR < 20.3535)
+{
+  //lampotila = -0.0195 *(pow(ntcR,3)) + 0.7932
+//*(pow(ntcR,2))-12.288 * ntcR + 88.058;
+
+apumuuttuja = (ntcR-9.212)/(20.3535-9.212);
+lampotila = (1-apumuuttuja)*(-0.0195 *(pow(ntcR,3)) + 0.7932
+*(pow(ntcR,2))-12.288 * ntcR + 88.058 )+(apumuuttuja)* (-25.93*(log(ntcR)) + 86.273);
+
+
+}
+
+if (ntcR < 9.212 && ntcR >=4.2795)
+{
+ //lampotila = -28.36*(log(ntcR)) + 89.648;
+  apumuuttuja = (ntcR-4.2795)/(9.212-4.2795);
+lampotila = (1-apumuuttuja)*(-28.36*(log(ntcR)) + 89.648)+ (apumuuttuja)* (-0.0195 *(pow(ntcR,3)) + 0.7932
+*(pow(ntcR,2))-12.288 * ntcR + 88.058);
+
+
+
+}
+
+if(ntcR< 4.2795 )
+{
+   lampotila = -28.36*(log(ntcR)) + 89.648;
+  
+
+}
+
+}
+
 int main() 
 {
 
@@ -193,7 +266,8 @@ zr = zVal.read_u16();
 	
 if(timer.read_ms() >= 200)
 {
-pc.printf("%7.2f, %7.2f, %7.2f\n" ,testiarvo,kulma[0], kulma[1]);
+lampotilalaskut();
+pc.printf("%7.2f, %7.2f, %7.2f\n" ,lampotila,kulma[0],kulma[1]);
 timer.reset();
 }
 wait(0.01);
